@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PatchIt — Community Pothole Reporter</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --card: #1e2333;
+    --border: #2a3050;
+    --accent: #f5c518;
+    --accent2: #ff4d4d;
+    --green: #22c55e;
+    --text: #e8eaf0;
+    --muted: #8892aa;
+    --orange: #fb923c;
+    --sidebar-w: 380px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: 'Barlow', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    height: 58px;
+    background: rgba(15,17,23,0.96);
+    backdrop-filter: blur(16px);
+    border-bottom: 2px solid var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+  }
+
+  .logo {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 26px;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+  }
+  .logo span { color: var(--text); }
+  .logo-icon {
+    width: 30px; height: 30px;
+    background: var(--accent);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .header-center {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .stat-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 13px;
+  }
+  .stat-pill strong {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 16px;
+  }
+
+  nav { display: flex; gap: 8px; }
+  nav button {
+    background: none;
+    border: 1.5px solid var(--border);
+    color: var(--muted);
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  nav button:hover { border-color: var(--accent); color: var(--accent); background: rgba(245,197,24,0.07); }
+  nav button.report-btn {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+  }
+  nav button.report-btn:hover { background: #e8b800; }
+
+  /* ── LAYOUT ── */
+  .app {
+    display: flex;
+    height: 100vh;
+    padding-top: 58px;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 500;
+  }
+
+  .sidebar-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sidebar-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: 0.3px;
+  }
+  .report-count {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+  }
+
+  .filter-bar {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 5px;
+  }
+  .chip {
+    background: none;
+    border: 1.5px solid var(--border);
+    color: var(--muted);
+    padding: 4px 11px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .chip.f-all.on   { color: var(--accent);  border-color: var(--accent);  background: rgba(245,197,24,0.08); }
+  .chip.f-open.on  { color: var(--accent2); border-color: var(--accent2); background: rgba(255,77,77,0.08); }
+  .chip.f-fixed.on { color: var(--green);   border-color: var(--green);   background: rgba(34,197,94,0.08); }
+  .chip.f-crit.on  { color: var(--accent2); border-color: var(--accent2); background: rgba(255,77,77,0.08); }
+
+  .reports-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  .reports-list::-webkit-scrollbar { width: 4px; }
+  .reports-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .report-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.18s;
+    position: relative;
+    overflow: hidden;
+  }
+  .report-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+  .report-card.bc-low::before    { background: var(--green); }
+  .report-card.bc-medium::before { background: var(--orange); }
+  .report-card.bc-high::before   { background: var(--accent); }
+  .report-card.bc-critical::before { background: var(--accent2); }
+  .report-card.bc-fixed::before  { background: var(--green); opacity: 0.5; }
+  .report-card:hover { border-color: rgba(245,197,24,0.4); transform: translateX(2px); }
+  .report-card.selected { border-color: var(--accent); background: rgba(245,197,24,0.04); }
+
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .card-addr { font-weight: 600; font-size: 13px; line-height: 1.3; flex: 1; margin-right: 8px; }
+  .sev-badge {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .sb-low      { background: rgba(34,197,94,0.15);  color: var(--green);   }
+  .sb-medium   { background: rgba(251,146,60,0.15); color: var(--orange);  }
+  .sb-high     { background: rgba(245,197,24,0.15); color: var(--accent);  }
+  .sb-critical { background: rgba(255,77,77,0.15);  color: var(--accent2); }
+
+  .card-photo { width: 100%; height: 70px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; border: 1px solid var(--border); }
+  .card-desc { font-size: 12px; color: var(--muted); line-height: 1.4; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-foot { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+
+  .status-pill {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+  }
+  .sp-open  { background: rgba(255,77,77,0.15);  color: var(--accent2); }
+  .sp-fixed { background: rgba(34,197,94,0.15);  color: var(--green);   }
+
+  .card-actions { display: flex; gap: 6px; }
+  .act-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 3px 9px;
+    border-radius: 5px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.12s;
+    font-family: 'Barlow', sans-serif;
+  }
+  .act-btn:hover         { border-color: var(--accent);  color: var(--accent);  }
+  .act-btn.fix:hover     { border-color: var(--green);   color: var(--green);   }
+  .act-btn.locate:hover  { border-color: #60a5fa;        color: #60a5fa;        }
+
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 180px; color: var(--muted); gap: 8px; }
+  .empty-icon  { font-size: 36px; opacity: 0.35; }
+  .empty-text  { font-size: 13px; }
+
+  /* ── MAP ── */
+  #map {
+    flex: 1;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Leaflet dark overrides */
+  .leaflet-tile-pane { filter: brightness(0.75) saturate(0.7); }
+  .leaflet-control-zoom { border: 1px solid var(--border) !important; }
+  .leaflet-control-zoom a {
+    background: var(--card) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+    font-weight: 700 !important;
+  }
+  .leaflet-control-zoom a:hover { background: var(--surface) !important; color: var(--accent) !important; }
+  .leaflet-control-attribution { background: rgba(15,17,23,0.8) !important; color: var(--muted) !important; font-size: 10px !important; }
+  .leaflet-control-attribution a { color: #6b7db3 !important; }
+
+  /* Custom marker */
+  .ph-marker {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    border: 2.5px solid rgba(0,0,0,0.45);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    cursor: pointer;
+    transition: transform 0.15s;
+    position: relative;
+  }
+  .ph-marker.pulse::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    animation: markerPulse 1.8s ease-out infinite;
+  }
+  @keyframes markerPulse {
+    0%   { opacity: 0.8; transform: scale(1); }
+    100% { opacity: 0;   transform: scale(2.2); }
+  }
+
+  /* Leaflet popup overrides */
+  .leaflet-popup-content-wrapper {
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    color: var(--text) !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5) !important;
+    padding: 0 !important;
+  }
+  .leaflet-popup-tip { background: var(--card) !important; }
+  .leaflet-popup-content { margin: 0 !important; width: auto !important; }
+  .leaflet-popup-close-button { color: var(--muted) !important; top: 8px !important; right: 10px !important; font-size: 18px !important; }
+  .leaflet-popup-close-button:hover { color: var(--accent2) !important; }
+
+  .popup-inner { padding: 14px 16px; min-width: 240px; max-width: 300px; }
+  .popup-addr { font-weight: 700; font-size: 14px; line-height: 1.3; margin-bottom: 6px; padding-right: 16px; }
+  .popup-meta { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .popup-desc { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
+  .popup-photo { width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 10px; border: 1px solid var(--border); }
+  .popup-foot { display: flex; gap: 6px; flex-wrap: wrap; }
+  .popup-btn {
+    flex: 1;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.12s;
+    font-family: 'Barlow', sans-serif;
+    white-space: nowrap;
+  }
+  .popup-btn:hover       { border-color: var(--accent);  color: var(--accent);  }
+  .popup-btn.fix:hover   { border-color: var(--green);   color: var(--green);   }
+
+  /* ── FAB ── */
+  .fab {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 600;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 50px;
+    padding: 13px 22px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 16px;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(245,197,24,0.45);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .fab:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(245,197,24,0.55); }
+
+  /* map mode indicator */
+  .pick-mode-banner {
+    position: fixed;
+    top: 68px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 800;
+    background: var(--accent);
+    color: #000;
+    padding: 8px 20px;
+    border-radius: 30px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 20px rgba(245,197,24,0.5);
+    display: none;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .pick-mode-banner.on { display: flex; }
+  .pick-cancel { background: rgba(0,0,0,0.2); border: none; color: #000; border-radius: 20px; padding: 2px 10px; font-size: 12px; cursor: pointer; font-weight: 700; }
+
+  /* map legend */
+  .map-legend {
+    position: fixed;
+    bottom: 28px;
+    left: calc(var(--sidebar-w) + 16px);
+    z-index: 600;
+    background: rgba(15,17,23,0.9);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    backdrop-filter: blur(8px);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+  .leg-dot  { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── MODAL ── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.72);
+    backdrop-filter: blur(5px);
+    z-index: 900;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.22s;
+  }
+  .overlay.on { opacity: 1; pointer-events: all; }
+
+  .modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%; max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+    transform: translateY(18px) scale(0.97);
+    transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .modal::-webkit-scrollbar { width: 4px; }
+  .modal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .overlay.on .modal { transform: translateY(0) scale(1); }
+
+  .modal-head {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0;
+    background: var(--card);
+    z-index: 1;
+    border-radius: 16px 16px 0 0;
+  }
+  .modal-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 22px; }
+  .modal-close {
+    background: none; border: 1.5px solid var(--border);
+    color: var(--muted); width: 30px; height: 30px;
+    border-radius: 7px; cursor: pointer; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+  }
+  .modal-close:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .modal-body  { padding: 18px 20px; }
+  .modal-foot  { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-lbl {
+    display: block;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; font-size: 12px;
+    letter-spacing: 0.8px; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 5px;
+  }
+  .form-lbl em { color: var(--accent2); font-style: normal; }
+
+  .form-in, .form-ta {
+    width: 100%;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-family: 'Barlow', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.12s;
+  }
+  .form-in:focus, .form-ta:focus { border-color: var(--accent); }
+  .form-ta { resize: vertical; min-height: 72px; }
+
+  .loc-preview {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .loc-preview.set { border-color: var(--green); color: var(--green); }
+  .loc-pick-btn {
+    margin-top: 6px;
+    background: none;
+    border: 1.5px solid var(--border);
+    color: var(--muted);
+    padding: 7px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.12s;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; letter-spacing: 0.5px;
+  }
+  .loc-pick-btn:hover { border-color: #60a5fa; color: #60a5fa; }
+
+  .sev-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
+  .sev-opt {
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.12s;
+    font-family: 'Barlow Condensed', sans-serif;
+    color: var(--muted);
+  }
+  .sev-opt span { display: block; }
+  .sev-opt .ei  { font-size: 20px; margin-bottom: 3px; }
+  .sev-opt .lt  { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .sev-opt:hover { transform: translateY(-2px); border-color: var(--muted); }
+  .sev-opt.on-low      { border-color: var(--green);   background: rgba(34,197,94,0.1);  color: var(--green);   }
+  .sev-opt.on-medium   { border-color: var(--orange);  background: rgba(251,146,60,0.1); color: var(--orange);  }
+  .sev-opt.on-high     { border-color: var(--accent);  background: rgba(245,197,24,0.1); color: var(--accent);  }
+  .sev-opt.on-critical { border-color: var(--accent2); background: rgba(255,77,77,0.1);  color: var(--accent2); }
+
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px; padding: 20px;
+    text-align: center; cursor: pointer;
+    transition: all 0.12s; position: relative;
+  }
+  .upload-zone:hover { border-color: var(--accent); background: rgba(245,197,24,0.02); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .upload-zone .ui   { font-size: 24px; margin-bottom: 4px; }
+  .upload-zone .ut   { font-size: 13px; color: var(--muted); }
+  .upload-zone .ut strong { color: var(--accent); }
+  .preview-ph { width: 100%; max-height: 130px; object-fit: cover; border-radius: 7px; border: 1px solid var(--border); margin-top: 7px; }
+
+  .btn-cancel {
+    background: none; border: 1.5px solid var(--border);
+    color: var(--muted); padding: 9px 18px;
+    border-radius: 7px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; font-size: 14px; letter-spacing: 0.5px;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .btn-cancel:hover { border-color: var(--text); color: var(--text); }
+
+  .btn-submit {
+    background: var(--accent); border: none;
+    color: #000; padding: 9px 22px;
+    border-radius: 7px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900; font-size: 15px; letter-spacing: 0.5px;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .btn-submit:hover { background: #e8b800; transform: translateY(-1px); }
+
+  /* ── TOAST ── */
+  .toasts {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 1100;
+    display: flex; flex-direction: column;
+    gap: 7px; align-items: center;
+    pointer-events: none;
+  }
+  .toast {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 9px;
+    padding: 10px 18px;
+    font-size: 13px; font-weight: 500;
+    box-shadow: 0 6px 26px rgba(0,0,0,0.45);
+    animation: toastIn 0.25s ease, toastOut 0.3s ease 2.7s forwards;
+    white-space: nowrap;
+  }
+  .toast.ok { border-left-color: var(--green); }
+  @keyframes toastIn  { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes toastOut { from { opacity:1; } to { opacity:0; } }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 700px) {
+    :root { --sidebar-w: 100vw; }
+    .app { flex-direction: column; }
+    .sidebar { width: 100%; height: 45vh; flex-shrink: 0; border-right: none; border-bottom: 1px solid var(--border); }
+    #map { flex: 1; }
+    .map-legend { bottom: auto; top: 68px; left: 8px; flex-wrap: wrap; }
+    .header-center { display: none; }
+    .fab { bottom: 12px; right: 12px; padding: 10px 16px; font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🕳</div>
+    PATCH<span>IT</span>
+  </div>
+
+  <div class="header-center">
+    <div class="stat-pill"><strong id="sh-open" style="color:var(--accent2)">0</strong> <span>Open</span></div>
+    <div class="stat-pill"><strong id="sh-fixed" style="color:var(--green)">0</strong> <span>Fixed</span></div>
+    <div class="stat-pill"><strong id="sh-total" style="color:var(--accent)">0</strong> <span>Total</span></div>
+  </div>
+
+  <nav>
+    <button onclick="toggleSidebar()">☰ Feed</button>
+    <button class="report-btn" onclick="openModal()">＋ Report</button>
+  </nav>
+</header>
+
+<!-- PICK LOCATION BANNER -->
+<div class="pick-mode-banner" id="pick-banner">
+  📍 Click anywhere on the map to set location
+  <button class="pick-cancel" onclick="cancelPick()">Cancel</button>
+</div>
+
+<!-- APP -->
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">📍 Reports Feed</span>
+      <span class="report-count" id="feed-count">0 reports</span>
+    </div>
+    <div class="filter-bar">
+      <button class="chip f-all on"   id="c-all"   onclick="setFilter('all')">All</button>
+      <button class="chip f-open"     id="c-open"  onclick="setFilter('open')">🔴 Open</button>
+      <button class="chip f-fixed"    id="c-fixed" onclick="setFilter('fixed')">✅ Fixed</button>
+      <button class="chip f-crit"     id="c-crit"  onclick="setFilter('crit')">⚠️ Critical</button>
+    </div>
+    <div class="reports-list" id="feed"></div>
+  </aside>
+
+  <!-- MAP -->
+  <div id="map"></div>
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="openModal()">＋ REPORT POTHOLE</button>
+
+<!-- LEGEND -->
+<div class="map-legend">
+  <div class="leg-item"><div class="leg-dot" style="background:#22c55e"></div>Low</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#fb923c"></div>Medium</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#f5c518"></div>High</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#ff4d4d"></div>Critical</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#4ade80;border:2px solid #22c55e"></div>Fixed</div>
+</div>
+
+<!-- REPORT MODAL -->
+<div class="overlay" id="overlay" onclick="overlayClick(event)">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">🕳 Report a Pothole</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Location -->
+      <div class="form-group">
+        <label class="form-lbl">📍 Location on Map <em>*</em></label>
+        <div class="loc-preview" id="loc-display">No location set — use button below or address</div>
+        <button class="loc-pick-btn" onclick="startPickMode()">🗺 Pick on Map</button>
+      </div>
+
+      <!-- Address -->
+      <div class="form-group">
+        <label class="form-lbl">🏠 Street Address / Intersection <em>*</em></label>
+        <input class="form-in" id="f-addr" placeholder="e.g. 123 Main St & Oak Ave">
+      </div>
+
+      <!-- Description -->
+      <div class="form-group">
+        <label class="form-lbl">📝 Description <em>*</em></label>
+        <textarea class="form-ta" id="f-desc" placeholder="Size, depth, lane, hazard to cyclists or vehicles…"></textarea>
+      </div>
+
+      <!-- Severity -->
+      <div class="form-group">
+        <label class="form-lbl">⚠️ Severity <em>*</em></label>
+        <div class="sev-grid">
+          <div class="sev-opt" onclick="pickSev(this,'low')">
+            <span class="ei">🟢</span><span class="lt">Low</span>
+          </div>
+          <div class="sev-opt" onclick="pickSev(this,'medium')">
+            <span class="ei">🟠</span><span class="lt">Medium</span>
+          </div>
+          <div class="sev-opt" onclick="pickSev(this,'high')">
+            <span class="ei">🟡</span><span class="lt">High</span>
+          </div>
+          <div class="sev-opt" onclick="pickSev(this,'critical')">
+            <span class="ei">🔴</span><span class="lt">Critical</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Photo -->
+      <div class="form-group">
+        <label class="form-lbl">📸 Photo <span style="color:var(--muted);font-size:10px;text-transform:none">(optional)</span></label>
+        <div class="upload-zone">
+          <input type="file" id="f-photo" accept="image/*" onchange="handlePhoto(this)">
+          <div class="ui">📷</div>
+          <div class="ut"><strong>Click to upload</strong> or drag & drop</div>
+        </div>
+        <img class="preview-ph" id="photo-prev" style="display:none">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-submit" onclick="submitReport()">🚨 Submit Report</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div class="toasts" id="toasts"></div>
+
+<!-- Leaflet JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+// ══════════════════════════════════════
+//  SUPABASE CONFIG
+// ══════════════════════════════════════
+const SUPABASE_URL = 'https://svcekvjotaqprdjsldnh.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2Y2VrdmpvdGFxcHJkanNsZG5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5MDgwNDMsImV4cCI6MjA4NzQ4NDA0M30.tmlUqSXncViUGloQ2uURilgJZ0MbdPV3RXrymQbyCMs';
+const API = `${SUPABASE_URL}/rest/v1/reports`;
+const HEADERS = {
+  'Content-Type':  'application/json',
+  'apikey':        SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Prefer':        'return=representation',
+};
+
+// ── Supabase helpers ──
+async function sbFetch(url, opts = {}) {
+  const res = await fetch(url, { ...opts, headers: { ...HEADERS, ...(opts.headers||{}) } });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Supabase error ${res.status}: ${err}`);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// Map DB row → app object
+function rowToReport(r) {
+  return {
+    id:     r.id,
+    lat:    r.lat,
+    lng:    r.lng,
+    addr:   r.addr,
+    desc:   r.description,
+    sev:    r.severity,
+    fixed:  r.fixed,
+    time:   new Date(r.created_at).getTime(),
+    photo:  r.photo_url || '',
+    votes:  r.votes,
+  };
+}
+
+// ══════════════════════════════════════
+//  SEVERITY CONFIG
+// ══════════════════════════════════════
+const SEV = {
+  low:      { label:'Low',      color:'#22c55e', bcCls:'bc-low',      sbCls:'sb-low'      },
+  medium:   { label:'Medium',   color:'#fb923c', bcCls:'bc-medium',   sbCls:'sb-medium'   },
+  high:     { label:'High',     color:'#f5c518', bcCls:'bc-high',     sbCls:'sb-high'     },
+  critical: { label:'Critical', color:'#ff4d4d', bcCls:'bc-critical', sbCls:'sb-critical' },
+};
+
+// ══════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════
+let reports  = [];
+let leafMap  = null;
+let markers  = {};
+let selId    = null;
+let filter   = 'all';
+let pickMode = false;
+let pendingLatLng = null;
+let pendingAddr   = '';
+let pickedSev  = '';
+let pickedPhoto = '';
+let sidebarOpen = true;
+
+// ══════════════════════════════════════
+//  DB OPERATIONS
+// ══════════════════════════════════════
+
+// Load all reports from Supabase
+async function load() {
+  showLoadingState(true);
+  try {
+    const rows = await sbFetch(`${API}?order=created_at.desc&limit=500`);
+    reports = rows.map(rowToReport);
+    // seed sample data if DB is empty
+    if (reports.length === 0) await seedDB();
+  } catch (e) {
+    console.error('Failed to load reports:', e);
+    toast('⚠️ Could not connect to database. Check console.', '');
+    reports = [];
+  }
+  showLoadingState(false);
+}
+
+function showLoadingState(loading) {
+  const feed = document.getElementById('feed');
+  if (loading) {
+    feed.innerHTML = `<div class="empty-state">
+      <div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div>
+      <div class="empty-text">Loading reports from database…</div>
+    </div>`;
+  }
+}
+
+// Insert a new report
+async function dbInsert(lat, lng, addr, desc, sev, photoUrl) {
+  const row = {
+    lat, lng,
+    addr,
+    description: desc,
+    severity:    sev,
+    fixed:       false,
+    votes:       1,
+    photo_url:   photoUrl || null,
+  };
+  const rows = await sbFetch(API, { method: 'POST', body: JSON.stringify(row) });
+  return rowToReport(rows[0]);
+}
+
+// Increment votes
+async function dbVote(id) {
+  // Use RPC or just read-then-write (simple approach)
+  const current = reports.find(r => r.id === id);
+  if (!current) return;
+  await sbFetch(`${API}?id=eq.${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ votes: current.votes + 1 }),
+  });
+}
+
+// Mark fixed
+async function dbMarkFixed(id) {
+  await sbFetch(`${API}?id=eq.${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ fixed: true }),
+  });
+}
+
+// Upload photo to Supabase Storage, return public URL (or fall back to base64)
+async function uploadPhoto(base64DataUrl) {
+  if (!base64DataUrl) return null;
+  try {
+    // Convert base64 to blob
+    const res   = await fetch(base64DataUrl);
+    const blob  = await res.blob();
+    const ext   = blob.type.includes('png') ? 'png' : 'jpg';
+    const fname = `${Date.now()}.${ext}`;
+    const uploadRes = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/pothole-photos/${fname}`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey':        SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type':  blob.type,
+          'Cache-Control': '3600',
+        },
+        body: blob,
+      }
+    );
+    if (uploadRes.ok) {
+      return `${SUPABASE_URL}/storage/v1/object/public/pothole-photos/${fname}`;
+    }
+  } catch (e) {
+    console.warn('Photo upload failed, storing as base64:', e);
+  }
+  // Fallback: store as base64 directly in the row
+  return base64DataUrl;
+}
+
+// Seed demo data into DB on first load
+async function seedDB() {
+  const seeds = [
+    { lat:43.6447, lng:-79.3866, addr:'King St W & John St',           desc:'Large pothole ~30cm across, 10cm deep. Caused a flat tire. Multiple complaints.',  sev:'critical' },
+    { lat:43.6529, lng:-79.3594, addr:'Queen St E near Parliament',    desc:'Small crack turning into a pothole near the curb. Hazardous for cyclists.',        sev:'low'      },
+    { lat:43.6510, lng:-79.4006, addr:'Dundas St W & Spadina Ave',     desc:'Medium pothole in the right lane during rush hour.',                               sev:'medium'   },
+    { lat:43.6695, lng:-79.3896, addr:'Bloor St W & Bay St',           desc:'Two potholes close together. Very dangerous for cyclists and motorcycles.',         sev:'high'     },
+    { lat:43.6561, lng:-79.3982, addr:'College St & McCaul St',        desc:'Fresh pothole appeared after heavy rain. Growing quickly.',                         sev:'medium'   },
+    { lat:43.7041, lng:-79.3988, addr:'Yonge St & Eglinton Ave',       desc:'Massive pothole — nearly hit a cyclist! Needs IMMEDIATE city attention.',           sev:'critical' },
+    { lat:43.6596, lng:-79.4401, addr:'Roncesvalles Ave & Howard Park',desc:'Deep pothole in the intersection, hard to avoid in the dark.',                      sev:'high'     },
+    { lat:43.6453, lng:-79.5007, addr:'Kipling Ave & Dundas St W',     desc:'Pothole near TTC stop — passengers stepping off buses keep tripping.',             sev:'medium'   },
+  ];
+  for (const s of seeds) {
+    try {
+      const r = await dbInsert(s.lat, s.lng, s.addr, s.desc, s.sev, null);
+      reports.push(r);
+    } catch(e) { console.warn('Seed insert failed:', e); }
+  }
+  reports.sort((a,b) => b.time - a.time);
+}
+
+// ══════════════════════════════════════
+//  INIT MAP
+// ══════════════════════════════════════
+function initMap() {
+  leafMap = L.map('map', {
+    center: [43.6532, -79.3832],
+    zoom: 13,
+    zoomControl: true,
+  });
+
+  // OpenStreetMap tiles (free, no API key)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  }).addTo(leafMap);
+
+  // Click handler for pick mode
+  leafMap.on('click', onMapClick);
+}
+
+function onMapClick(e) {
+  if (!pickMode) return;
+  pendingLatLng = e.latlng;
+  // Reverse geocode via Nominatim (free)
+  reverseGeocode(e.latlng.lat, e.latlng.lng).then(addr => {
+    pendingAddr = addr;
+    document.getElementById('f-addr').value = addr;
+    const ld = document.getElementById('loc-display');
+    ld.textContent = `📍 ${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+    ld.classList.add('set');
+    stopPickMode();
+    openModal();
+    toast('📍 Location pinned on map!');
+  });
+}
+
+async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, {
+      headers: { 'Accept-Language': 'en' }
+    });
+    const j = await res.json();
+    if (j.display_name) {
+      const parts = j.display_name.split(',').slice(0,3);
+      return parts.join(',').trim();
+    }
+  } catch {}
+  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}
+
+// ══════════════════════════════════════
+//  MARKERS
+// ══════════════════════════════════════
+function makeIcon(r) {
+  const color = r.fixed ? '#4ade80' : SEV[r.sev].color;
+  const pulse = !r.fixed && r.sev === 'critical';
+  const size = r.sev === 'critical' && !r.fixed ? 22 : 18;
+  const html = `
+    <div class="ph-marker ${pulse?'pulse':''}" style="
+      width:${size}px; height:${size}px;
+      background:${color};
+      color:${color};
+      opacity:${r.fixed?0.6:1};
+    "></div>`;
+  return L.divIcon({
+    className: '',
+    html,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+    popupAnchor: [0, -size/2 - 4],
+  });
+}
+
+function buildPopup(r) {
+  const sev = SEV[r.sev];
+  const img = r.photo ? `<img src="${r.photo}" class="popup-photo" alt="Pothole">` : '';
+  const fixBtn = r.fixed ? '' : `<button class="popup-btn fix" onclick="markFixed(${r.id})">✅ Mark Fixed</button>`;
+  return `
+    <div class="popup-inner">
+      <div class="popup-addr">${r.addr}</div>
+      <div class="popup-meta">
+        <span class="sev-badge ${sev.sbCls}">${sev.label}</span>
+        <span class="status-pill ${r.fixed?'sp-fixed':'sp-open'}">${r.fixed?'✅ Fixed':'🔴 Open'}</span>
+      </div>
+      ${img}
+      <div class="popup-desc">${r.desc}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">🕐 ${fmtTime(r.time)} &nbsp;·&nbsp; 👍 ${r.votes}</div>
+      <div class="popup-foot">
+        <button class="popup-btn" onclick="voteReport(${r.id})">👍 Confirm (${r.votes})</button>
+        ${fixBtn}
+      </div>
+    </div>`;
+}
+
+function addMarker(r) {
+  if (markers[r.id]) {
+    markers[r.id].remove();
+    delete markers[r.id];
+  }
+  const m = L.marker([r.lat, r.lng], { icon: makeIcon(r) })
+    .bindPopup(buildPopup(r), { maxWidth: 310, className: '' })
+    .addTo(leafMap);
+
+  m.on('click', () => {
+    selId = r.id;
+    renderFeed();
+    scrollCard(r.id);
+  });
+  markers[r.id] = m;
+}
+
+function refreshAllMarkers() {
+  reports.forEach(r => addMarker(r));
+}
+
+function flyTo(r) {
+  leafMap.flyTo([r.lat, r.lng], Math.max(leafMap.getZoom(), 16), { animate: true, duration: 0.8 });
+  setTimeout(() => markers[r.id]?.openPopup(), 850);
+}
+
+// ══════════════════════════════════════
+//  FEED / LIST
+// ══════════════════════════════════════
+function getFiltered() {
+  switch (filter) {
+    case 'open':  return reports.filter(r => !r.fixed);
+    case 'fixed': return reports.filter(r =>  r.fixed);
+    case 'crit':  return reports.filter(r => r.sev === 'critical');
+    default:      return [...reports];
+  }
+}
+
+function renderFeed() {
+  const list = document.getElementById('feed');
+  const filtered = getFiltered().sort((a,b) => b.time - a.time);
+  document.getElementById('feed-count').textContent = `${filtered.length} report${filtered.length!==1?'s':''}`;
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🕳</div><div class="empty-text">No reports match filter</div></div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(r => {
+    const sev = SEV[r.sev];
+    const img = r.photo ? `<img src="${r.photo}" class="card-photo" alt="Pothole">` : '';
+    const fixBc = r.fixed ? 'bc-fixed' : sev.bcCls;
+    const sel = selId === r.id ? 'selected' : '';
+    const fixBtn = r.fixed ? '' : `<button class="act-btn fix" onclick="markFixed(${r.id},event)">✅ Fix</button>`;
+    return `
+      <div class="report-card ${fixBc} ${sel}" id="card-${r.id}" onclick="cardClick(${r.id})">
+        ${img}
+        <div class="card-top">
+          <div class="card-addr">${r.addr}</div>
+          <span class="sev-badge ${sev.sbCls}">${sev.label}</span>
+        </div>
+        <div class="card-desc">${r.desc}</div>
+        <div class="card-foot">
+          <span>🕐 ${timeAgo(r.time)}</span>
+          <span class="status-pill ${r.fixed?'sp-fixed':'sp-open'}">${r.fixed?'✅ Fixed':'🔴 Open'}</span>
+        </div>
+        <div class="card-actions">
+          <button class="act-btn locate" onclick="flyToReport(${r.id},event)">📍 Map</button>
+          <button class="act-btn" onclick="voteReport(${r.id},event)">👍 ${r.votes}</button>
+          ${fixBtn}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function scrollCard(id) {
+  const el = document.getElementById('card-'+id);
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function cardClick(id) {
+  selId = id;
+  renderFeed();
+  flyTo(reports.find(r=>r.id===id));
+}
+
+function flyToReport(id, e) {
+  e?.stopPropagation();
+  selId = id;
+  renderFeed();
+  flyTo(reports.find(r=>r.id===id));
+}
+
+// ══════════════════════════════════════
+//  STATS
+// ══════════════════════════════════════
+function updateStats() {
+  document.getElementById('sh-total').textContent = reports.length;
+  document.getElementById('sh-open').textContent  = reports.filter(r=>!r.fixed).length;
+  document.getElementById('sh-fixed').textContent = reports.filter(r=>r.fixed).length;
+}
+
+// ══════════════════════════════════════
+//  ACTIONS
+// ══════════════════════════════════════
+async function voteReport(id, e) {
+  e?.stopPropagation();
+  const r = reports.find(x=>x.id===id);
+  if (!r) return;
+  r.votes++;
+  addMarker(r);
+  renderFeed();
+  updateStats();
+  toast('👍 Thanks for confirming this pothole!');
+  try { await dbVote(id); }
+  catch(err) { console.error('Vote save failed:', err); toast('⚠️ Vote could not be saved.'); r.votes--; renderFeed(); }
+}
+
+async function markFixed(id, e) {
+  e?.stopPropagation();
+  const r = reports.find(x=>x.id===id);
+  if (!r || r.fixed) return;
+  r.fixed = true;
+  addMarker(r);
+  renderFeed();
+  updateStats();
+  toast('✅ Pothole marked as fixed — great news!', 'ok');
+  try { await dbMarkFixed(id); }
+  catch(err) { console.error('Fix save failed:', err); toast('⚠️ Could not save to database.'); r.fixed = false; addMarker(r); renderFeed(); }
+}
+
+// ══════════════════════════════════════
+//  FILTER
+// ══════════════════════════════════════
+function setFilter(f) {
+  filter = f;
+  ['all','open','fixed','crit'].forEach(k => {
+    const el = document.getElementById('c-'+k);
+    el.classList.remove('on');
+  });
+  document.getElementById('c-'+f).classList.add('on');
+  renderFeed();
+}
+
+// ══════════════════════════════════════
+//  MODAL
+// ══════════════════════════════════════
+function openModal() {
+  pickedSev = ''; pickedPhoto = '';
+  if (!pendingLatLng) {
+    document.getElementById('loc-display').textContent = 'No location set — use button below or address';
+    document.getElementById('loc-display').classList.remove('set');
+  }
+  document.getElementById('f-addr').value = pendingAddr || '';
+  document.getElementById('f-desc').value = '';
+  document.getElementById('f-photo').value = '';
+  document.getElementById('photo-prev').style.display = 'none';
+  document.querySelectorAll('.sev-opt').forEach(el => el.className = 'sev-opt');
+  document.getElementById('overlay').classList.add('on');
+  setTimeout(() => document.getElementById('f-addr').focus(), 280);
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('on');
+  pendingLatLng = null;
+  pendingAddr   = '';
+}
+
+function overlayClick(e) { if (e.target.id==='overlay') closeModal(); }
+
+function startPickMode() {
+  closeModal();
+  pickMode = true;
+  document.getElementById('pick-banner').classList.add('on');
+  leafMap.getContainer().style.cursor = 'crosshair';
+}
+
+function stopPickMode() {
+  pickMode = false;
+  document.getElementById('pick-banner').classList.remove('on');
+  leafMap.getContainer().style.cursor = '';
+}
+
+function cancelPick() {
+  stopPickMode();
+  openModal();
+}
+
+function pickSev(el, s) {
+  document.querySelectorAll('.sev-opt').forEach(x => x.className = 'sev-opt');
+  el.classList.add('on-'+s);
+  pickedSev = s;
+}
+
+function handlePhoto(input) {
+  const f = input.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    pickedPhoto = e.target.result;
+    const p = document.getElementById('photo-prev');
+    p.src = pickedPhoto; p.style.display = 'block';
+    document.querySelector('.upload-zone .ut').innerHTML = '<strong>Photo ready ✓</strong>';
+  };
+  r.readAsDataURL(f);
+}
+
+async function submitReport() {
+  const addr = document.getElementById('f-addr').value.trim();
+  const desc = document.getElementById('f-desc').value.trim();
+
+  if (!addr) { highlight('f-addr'); toast('⚠️ Please enter an address.'); return; }
+  if (!desc) { highlight('f-desc'); toast('⚠️ Please add a description.'); return; }
+  if (!pickedSev) { toast('⚠️ Please select a severity level.'); return; }
+
+  let lat, lng;
+  if (pendingLatLng) {
+    lat = pendingLatLng.lat;
+    lng = pendingLatLng.lng;
+  } else {
+    toast('🔍 Geocoding address…');
+    const geo = await geocodeAddr(addr);
+    if (!geo) { toast('⚠️ Could not find address on map. Try "Pick on Map".'); return; }
+    lat = geo.lat; lng = geo.lng;
+  }
+
+  // Disable submit button to prevent double-submit
+  const btn = document.querySelector('.btn-submit');
+  btn.disabled = true;
+  btn.textContent = '⏳ Saving…';
+
+  try {
+    // Upload photo if present
+    let photoUrl = null;
+    if (pickedPhoto) {
+      toast('📤 Uploading photo…');
+      photoUrl = await uploadPhoto(pickedPhoto);
+    }
+
+    toast('💾 Saving to database…');
+    const r = await dbInsert(lat, lng, addr, desc, pickedSev, photoUrl);
+
+    reports.unshift(r);
+    addMarker(r);
+    renderFeed();
+    updateStats();
+    closeModal();
+
+    setTimeout(() => {
+      flyTo(r);
+      toast('🚨 Pothole reported! Saved to database.', 'ok');
+    }, 200);
+  } catch(err) {
+    console.error('Submit failed:', err);
+    toast('⚠️ Failed to save report. Check console for details.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🚨 Submit Report';
+  }
+}
+
+async function geocodeAddr(addr) {
+  try {
+    const q = encodeURIComponent(addr);
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
+    const j   = await res.json();
+    if (j.length) return { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) };
+  } catch {}
+  return null;
+}
+
+function highlight(id) {
+  const el = document.getElementById(id);
+  el.style.borderColor = 'var(--accent2)';
+  setTimeout(() => el.style.borderColor = '', 2500);
+}
+
+// ══════════════════════════════════════
+//  SIDEBAR TOGGLE
+// ══════════════════════════════════════
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  sidebarOpen = !sidebarOpen;
+  sb.style.display = sidebarOpen ? '' : 'none';
+  setTimeout(() => leafMap.invalidateSize(), 200);
+}
+
+// ══════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════
+function toast(msg, type='') {
+  const c = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+// ══════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════
+function timeAgo(ts) {
+  const d = Date.now()-ts;
+  if (d<60000)    return 'just now';
+  if (d<3600000)  return Math.floor(d/60000)+'m ago';
+  if (d<86400000) return Math.floor(d/3600000)+'h ago';
+  return Math.floor(d/86400000)+'d ago';
+}
+function fmtTime(ts) {
+  return new Date(ts).toLocaleString(undefined, {dateStyle:'medium',timeStyle:'short'});
+}
+
+// ══════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  initMap();
+  await load();
+  refreshAllMarkers();
+  renderFeed();
+  updateStats();
+  document.addEventListener('keydown', e => {
+    if (e.key==='Escape') { closeModal(); cancelPick(); }
+  });
+});
+</script>
+</body>
+</html>

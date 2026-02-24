@@ -811,8 +811,8 @@ async function load() {
   try {
     const rows = await sbFetch(`${API}?order=created_at.desc&limit=500`);
     reports = rows.map(rowToReport);
-    // seed sample data if DB is empty
-    if (reports.length === 0) await seedDB();
+    // DB is empty - just show empty state, no seeding
+    reports = [];
   } catch (e) {
     console.error('Failed to load reports:', e);
     toast('⚠️ Could not connect to database. Check console.', '');
@@ -897,26 +897,6 @@ async function uploadPhoto(base64DataUrl) {
   return base64DataUrl;
 }
 
-// Seed demo data into DB on first load
-async function seedDB() {
-  const seeds = [
-    { lat:43.6447, lng:-79.3866, addr:'King St W & John St',           desc:'Large pothole ~30cm across, 10cm deep. Caused a flat tire. Multiple complaints.',  sev:'critical' },
-    { lat:43.6529, lng:-79.3594, addr:'Queen St E near Parliament',    desc:'Small crack turning into a pothole near the curb. Hazardous for cyclists.',        sev:'low'      },
-    { lat:43.6510, lng:-79.4006, addr:'Dundas St W & Spadina Ave',     desc:'Medium pothole in the right lane during rush hour.',                               sev:'medium'   },
-    { lat:43.6695, lng:-79.3896, addr:'Bloor St W & Bay St',           desc:'Two potholes close together. Very dangerous for cyclists and motorcycles.',         sev:'high'     },
-    { lat:43.6561, lng:-79.3982, addr:'College St & McCaul St',        desc:'Fresh pothole appeared after heavy rain. Growing quickly.',                         sev:'medium'   },
-    { lat:43.7041, lng:-79.3988, addr:'Yonge St & Eglinton Ave',       desc:'Massive pothole — nearly hit a cyclist! Needs IMMEDIATE city attention.',           sev:'critical' },
-    { lat:43.6596, lng:-79.4401, addr:'Roncesvalles Ave & Howard Park',desc:'Deep pothole in the intersection, hard to avoid in the dark.',                      sev:'high'     },
-    { lat:43.6453, lng:-79.5007, addr:'Kipling Ave & Dundas St W',     desc:'Pothole near TTC stop — passengers stepping off buses keep tripping.',             sev:'medium'   },
-  ];
-  for (const s of seeds) {
-    try {
-      const r = await dbInsert(s.lat, s.lng, s.addr, s.desc, s.sev, null);
-      reports.push(r);
-    } catch(e) { console.warn('Seed insert failed:', e); }
-  }
-  reports.sort((a,b) => b.time - a.time);
-}
 
 // ══════════════════════════════════════
 //  INIT MAP

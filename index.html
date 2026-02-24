@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pot Watch — Community Pothole Reporter</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PatchIt — Community Pothole Reporter</title>
 
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
@@ -482,7 +482,7 @@
     border-radius: 8px;
     padding: 9px 12px;
     font-family: 'Barlow', sans-serif;
-    font-size: 14px;
+    font-size: 16px; /* 16px minimum prevents iOS Safari auto-zoom */
     outline: none;
     transition: border-color 0.12s;
   }
@@ -499,8 +499,13 @@
     display: flex; align-items: center; gap: 8px;
   }
   .loc-preview.set { border-color: var(--green); color: var(--green); }
-  .loc-pick-btn {
+  .loc-btn-row {
+    display: flex;
+    gap: 8px;
     margin-top: 6px;
+  }
+  .loc-pick-btn {
+    flex: 1;
     background: none;
     border: 1.5px solid var(--border);
     color: var(--muted);
@@ -511,8 +516,30 @@
     transition: all 0.12s;
     font-family: 'Barlow Condensed', sans-serif;
     font-weight: 700; letter-spacing: 0.5px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
   }
   .loc-pick-btn:hover { border-color: #60a5fa; color: #60a5fa; }
+  .loc-gps-btn {
+    flex: 1;
+    background: none;
+    border: 1.5px solid var(--border);
+    color: var(--muted);
+    padding: 7px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.12s;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; letter-spacing: 0.5px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .loc-gps-btn:hover { border-color: var(--green); color: var(--green); }
+  .loc-gps-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .loc-gps-btn.locating {
+    border-color: var(--green); color: var(--green);
+    animation: locPulse 1s ease-in-out infinite;
+  }
+  @keyframes locPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
   .sev-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
   .sev-opt {
@@ -610,7 +637,7 @@
 <header>
   <div class="logo">
     <div class="logo-icon">🕳</div>
-    POT<span>WATCH</span>
+    PATCH<span>IT</span>
   </div>
 
   <div class="header-center">
@@ -677,7 +704,10 @@
       <div class="form-group">
         <label class="form-lbl">📍 Location on Map <em>*</em></label>
         <div class="loc-preview" id="loc-display">No location set — use button below or address</div>
-        <button class="loc-pick-btn" onclick="startPickMode()">🗺 Pick on Map</button>
+        <div class="loc-btn-row">
+          <button class="loc-pick-btn" onclick="startPickMode()">🗺 Pick on Map</button>
+          <button class="loc-gps-btn" id="gps-btn" onclick="useCurrentLocation()">📡 Use My Location</button>
+        </div>
       </div>
 
       <!-- Address -->
@@ -1157,9 +1187,75 @@ function closeModal() {
   document.getElementById('overlay').classList.remove('on');
   pendingLatLng = null;
   pendingAddr   = '';
+  // Reset GPS button state
+  const gpsBtn = document.getElementById('gps-btn');
+  if (gpsBtn) { gpsBtn.textContent = '📡 Use My Location'; gpsBtn.disabled = false; gpsBtn.classList.remove('locating'); }
+  // Remove temp location marker
+  if (window._tempLocMarker) { window._tempLocMarker.remove(); window._tempLocMarker = null; }
 }
 
 function overlayClick(e) { if (e.target.id==='overlay') closeModal(); }
+
+async function useCurrentLocation() {
+  if (!navigator.geolocation) {
+    toast('⚠️ Your browser does not support GPS location.');
+    return;
+  }
+
+  const btn = document.getElementById('gps-btn');
+  btn.classList.add('locating');
+  btn.textContent = '📡 Getting location…';
+  btn.disabled = true;
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      // Set the pending location
+      pendingLatLng = { lat, lng };
+
+      // Fly the map to the user's location
+      leafMap.flyTo([lat, lng], 17, { animate: true, duration: 0.8 });
+
+      // Drop a temporary marker to show the pin
+      if (window._tempLocMarker) window._tempLocMarker.remove();
+      window._tempLocMarker = L.circleMarker([lat, lng], {
+        radius: 10, color: '#22c55e', fillColor: '#22c55e',
+        fillOpacity: 0.5, weight: 2
+      }).addTo(leafMap);
+
+      // Reverse geocode
+      toast('📍 Got your location! Looking up address…');
+      const addr = await reverseGeocode(lat, lng);
+      pendingAddr = addr;
+      document.getElementById('f-addr').value = addr;
+
+      const ld = document.getElementById('loc-display');
+      ld.textContent = `📍 ${addr}`;
+      ld.classList.add('set');
+
+      btn.classList.remove('locating');
+      btn.textContent = '✅ Location Set';
+      btn.disabled = false;
+      toast('📍 Current location pinned!', 'ok');
+    },
+    (err) => {
+      btn.classList.remove('locating');
+      btn.textContent = '📡 Use My Location';
+      btn.disabled = false;
+
+      if (err.code === err.PERMISSION_DENIED) {
+        toast('⚠️ Location access denied. Please allow location in your browser.');
+      } else if (err.code === err.POSITION_UNAVAILABLE) {
+        toast('⚠️ Location unavailable. Try "Pick on Map" instead.');
+      } else {
+        toast('⚠️ Could not get location. Try "Pick on Map" instead.');
+      }
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
 
 function startPickMode() {
   closeModal();

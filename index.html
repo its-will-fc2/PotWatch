@@ -811,8 +811,7 @@ async function load() {
   try {
     const rows = await sbFetch(`${API}?order=created_at.desc&limit=500`);
     reports = rows.map(rowToReport);
-    // DB is empty - just show empty state, no seeding
-    reports = [];
+
   } catch (e) {
     console.error('Failed to load reports:', e);
     toast('⚠️ Could not connect to database. Check console.', '');
